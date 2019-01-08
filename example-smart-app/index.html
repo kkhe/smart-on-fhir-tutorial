@@ -10,6 +10,67 @@
       Temporarily disable cerner-smart-embeddable-lib
       <link rel='stylesheet' type='text/css' href='./lib/css/cerner-smart-embeddable-lib-1.0.0.min.css'>
     -->
+    <script src="https://cdn.jsdelivr.net/npm/node-uuid@1.4.8/uuid.min.js"></script>
+    <script>
+      var SMART = {
+        "messaging": {
+          "send": function(msgType, payload) {
+            var smart_messaging_origin = 'https://cds-hooks-decisions.herokuapp.com';
+
+            var msgStructure = {
+              "authentication": { },
+              "messageId": uuid(),
+              "messageType": msgType,
+              "payload": payload
+            };
+
+            targetWindow = window.parent != window.top ? window.parent : window.opener;
+            targetWindow.postMessage(msgStructure, smart_messaging_origin);
+
+            return;
+          }
+        }
+      };
+
+      function sendMessage(msgType) {
+        SMART.messaging.send(msgType, {
+                                        'description': msgType + ' medication',
+                                        'resource': {
+                                          'resourceType': 'ServiceRequest',
+                                          'id': '123',
+                                          'status': 'draft'
+                                        }
+                                      });
+      }
+
+      function sendUIMessage(msgType, activityType) {
+        SMART.messaging.send(msgType, {
+          "activityType": activityType,
+          "activityParameters": {
+            // Each activity defines its optional+required params
+            "patient": "123",
+          }
+        });
+      }
+
+      var ehr_url = ['https://cds-hooks-decisions.herokuapp.com'];
+      function receiveMessage(event) {
+        if (!ehr_url.includes(event.origin)) {
+          console.log('Receiving message from: ' + event.origin + ' which is not in the approved sender list.' )
+          return;
+        }
+
+        var msgData = JSON.stringify(event.data);
+        console.log('Receiving message from: ' + event.origin)
+        var para = document.createElement("P");
+        var t = document.createTextNode(event.origin + ": " + msgData);
+        para.appendChild(t);
+        document.getElementById("message").appendChild(para);
+
+      }
+
+      window.addEventListener("message", receiveMessage, false);
+    
   </head>
   <body>
     <div id='errors'>
@@ -97,5 +158,17 @@
         }
       );
     </script>
+    
+    <!-- Add postMessage example -->
+    <h2>Send message to EHR</h2>
+    <form>
+      <button type="button" onclick="javascript:sendMessage('fhir.create')">Send fhir.create</button>
+      <button type="button" onclick="javascript:sendMessage('fhir.update')">Send fhir.update</button>
+      <button type="button" onclick="javascript:sendMessage('fhir.delete')">Send fhir.delete</button>
+      <button type="button" onclick="javascript:sendUIMessage('ui.launchActivity', 'scratchpad')">Send ui.launchActivity</button>
+      <button type="button" onclick="javascript:sendUIMessage('ui.done', 'problem-list')">Send ui.done</button>
+    </form>
+
+    <div id=message></div>
   </body>
 </html>
